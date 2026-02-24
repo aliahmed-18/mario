@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mario JS</title>
+    <title>Mario JS — Story Mode</title>
     <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -17,7 +17,6 @@
             <p>🗺 <span id="levels">1</span></p>
             <p>❤️ <span id="lives">3</span></p>
             <p>⏱ <span id="time">0</span>s</p>
-            <!-- Live FPS counter — colour coded by JS (green/yellow/red) -->
             <p class="fps-badge">FPS: <span id="fps">--</span></p>
         </div>
 
@@ -27,7 +26,110 @@
             <!-- Player -->
             <div id="mario"></div>
 
-            <!-- ── Pause Menu (hidden until P / Esc pressed) ──── -->
+            <!-- ── Story Mode Overlay ─────────────────────────────
+                 Covers the game area with a cinematic narrative card.
+                 Shown for: Introduction | Development | Conclusion
+            ─────────────────────────────────────────────────────── -->
+            <div id="story-overlay">
+                <div class="story-card">
+                    <div class="story-card-deco top-left"></div>
+                    <div class="story-card-deco top-right"></div>
+                    <div class="story-card-deco bottom-left"></div>
+                    <div class="story-card-deco bottom-right"></div>
+
+                    <div id="story-icon" class="story-icon">🌑</div>
+                    <h2 id="story-title">Chapter I</h2>
+                    <div id="story-body" class="story-body"></div>
+                    <button id="story-btn" class="story-btn">Continue ▶</button>
+                </div>
+            </div>
+
+            <!-- ── Name Prompt Overlay ───────────────────────────
+                 Shown after game ends, before scoreboard.
+                 Asks for the player's name to record their score.
+            ─────────────────────────────────────────────────────── -->
+            <div id="name-overlay">
+                <div class="name-card">
+                    <div class="story-card-deco top-left"></div>
+                    <div class="story-card-deco top-right"></div>
+                    <div class="story-card-deco bottom-left"></div>
+                    <div class="story-card-deco bottom-right"></div>
+
+                    <div class="name-icon" id="name-result-icon">🏆</div>
+                    <h2 id="name-result-title">Game Over</h2>
+                    <p id="name-result-subtitle">Score: <span id="name-final-score">0</span></p>
+
+                    <div class="name-form">
+                        <label for="player-name-input">Enter your name to save your score:</label>
+                        <input
+                            type="text"
+                            id="player-name-input"
+                            class="name-input"
+                            maxlength="12"
+                            placeholder="Your name..."
+                            autocomplete="off"
+                        />
+                        <div class="name-btn-row">
+                            <button id="name-submit-btn" class="story-btn name-submit-btn">
+                                Save Score &amp; View Board ▶
+                            </button>
+                            <button id="name-skip-btn" class="name-skip-btn">
+                                Skip
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Scoreboard Overlay ────────────────────────────
+                 Full-area leaderboard shown after every game.
+            ─────────────────────────────────────────────────────── -->
+            <div id="scoreboard-overlay">
+                <div class="scoreboard-card">
+                    <div class="story-card-deco top-left"></div>
+                    <div class="story-card-deco top-right"></div>
+                    <div class="story-card-deco bottom-left"></div>
+                    <div class="story-card-deco bottom-right"></div>
+
+                    <div class="sb-header">
+                        <span class="sb-trophy">🏆</span>
+                        <h2 class="sb-title">HIGH SCORES</h2>
+                        <span class="sb-trophy">🏆</span>
+                    </div>
+
+                    <!-- Percentile banner — shown only when player has a rank -->
+                    <div id="sb-percentile-banner" class="sb-percentile-banner"></div>
+
+                    <!-- Table -->
+                    <div class="sb-table-wrap">
+                        <table class="sb-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Name</th>
+                                    <th>Score</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sb-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="sb-pagination">
+                        <button id="sb-prev" class="sb-page-btn" disabled>&#8592;</button>
+                        <span id="sb-page-info" class="sb-page-info">Page 1 / 1</span>
+                        <button id="sb-next" class="sb-page-btn" disabled>&#8594;</button>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="sb-actions">
+                        <button id="sb-play-again" class="story-btn">Play Again ↺</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Pause Menu ─────────────────────────────────── -->
             <div id="pause-menu">
                 <h2>⏸ Paused</h2>
                 <p>Press <strong>P</strong> or <strong>Esc</strong> to resume</p>

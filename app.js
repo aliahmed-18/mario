@@ -1,13 +1,5 @@
 // ============================================================
-//  MARIO JS  –  Complete Game
-//  Requirements covered:
-//    ✅ requestAnimationFrame (proper usage, timestamp passed)
-//    ✅ Performance measurement – live FPS counter + jank colour
-//    ✅ Pause menu  (P / Esc)  →  Continue  |  Restart
-//    ✅ Scoreboard  →  Timer  |  Score  |  Lives
-//    ✅ Minimal layers  (CSS transform on player, not left/top)
-//    ✅ Plain JS / DOM only – no frameworks, no canvas
-//    ✅ Smooth held-key controls  (keydown→keyup state map)
+//  MARIO JS  –  Complete Game with Story Mode + Scoreboard
 // ============================================================
 
 // ── Constants ────────────────────────────────────────────────
@@ -16,15 +8,28 @@ const JUMP_FORCE  = -12;
 const MOVE_SPEED  = 5;
 const ENEMY_SPEED = 1;
 
+// ── API ──────────────────────────────────────────────────────
+// Relative URL — works on any host/port since the Go server serves both game + API.
+const API_URL = '/scores';
+
+// ── Story Mode Config ─────────────────────────────────────────
+const STORY_SCORE_THRESHOLD = 300;
+
+let storyState = {
+    introShown:       false,
+    developmentShown: false,
+    conclusionShown:  false
+};
+
 // ── Performance tracking ─────────────────────────────────────
 let lastFrameTime = 0;
-let frameTimes    = [];          // rolling window of frame deltas
-const FPS_SAMPLES = 60;          // average over last 60 frames
+let frameTimes    = [];
+const FPS_SAMPLES = 60;
 
 // ── Timers ───────────────────────────────────────────────────
-let gameStartTime = 0;           // performance.now() at game start
-let pausedAt      = 0;           // performance.now() when paused
-let totalPausedMs = 0;           // cumulative ms spent paused
+let gameStartTime = 0;
+let pausedAt      = 0;
+let totalPausedMs = 0;
 
 // ── Game state ────────────────────────────────────────────────
 let gameState = {
@@ -33,6 +38,7 @@ let gameState = {
     lives:       3,
     gameRunning: true,
     gamePaused:  false,
+    storyPaused: false,
     keys:        {}
 };
 
@@ -60,10 +66,338 @@ let gameObjects = {
 };
 
 // ============================================================
-//  LEVELS  (10 levels)
+//  SCOREBOARD  –  helpers
+// ============================================================
+
+/** Format seconds → "MM:SS" */
+function formatTime(totalSeconds) {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/** Rank suffix: 1 → "st", 2 → "nd", etc. */
+function rankSuffix(n) {
+    if (n === 11 || n === 12 || n === 13) return 'th';
+    switch (n % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+    }
+}
+
+const ROWS_PER_PAGE = 5;
+let sbAllScores  = [];   // full sorted list from API
+let sbPage       = 0;    // 0-based current page
+let sbMyName     = '';   // name submitted this session (for highlighting)
+let sbMyScore    = 0;
+
+/** Post a score to the Go API, returns sorted list or null on error */
+async function apiPostScore(name, score, timeStr) {
+    try {
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, score, time: timeStr })
+        });
+        if (!res.ok) throw new Error('POST failed');
+        return await res.json();
+    } catch (e) {
+        console.warn('Score API unavailable – showing local only:', e);
+        return null;
+    }
+}
+
+/** GET all scores from the Go API, returns sorted list or null on error */
+async function apiGetScores() {
+    try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error('GET failed');
+        return await res.json();
+    } catch (e) {
+        console.warn('Score API unavailable:', e);
+        return null;
+    }
+}
+
+// ── Scoreboard pagination ────────────────────────────────────
+
+function sbRender() {
+    const tbody      = document.getElementById('sb-tbody');
+    const pageInfo   = document.getElementById('sb-page-info');
+    const btnPrev    = document.getElementById('sb-prev');
+    const btnNext    = document.getElementById('sb-next');
+    const totalPages = Math.max(1, Math.ceil(sbAllScores.length / ROWS_PER_PAGE));
+
+    pageInfo.textContent = `Page ${sbPage + 1} / ${totalPages}`;
+    btnPrev.disabled = sbPage === 0;
+    btnNext.disabled = sbPage >= totalPages - 1;
+
+    tbody.innerHTML = '';
+
+    if (sbAllScores.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="sb-empty">No scores yet — be the first!</td></tr>`;
+        return;
+    }
+
+    const start = sbPage * ROWS_PER_PAGE;
+    const slice = sbAllScores.slice(start, start + ROWS_PER_PAGE);
+
+    slice.forEach((entry, idx) => {
+        const rank      = start + idx + 1;
+        const isMe      = entry.name === sbMyName && entry.score === sbMyScore;
+        const tr        = document.createElement('tr');
+        if (isMe) tr.classList.add('sb-my-row');
+
+        // Rank cell
+        const sfx       = rankSuffix(rank);
+        let rankHTML;
+        if (rank === 1) rankHTML = `<span class="sb-rank-1">🥇</span>`;
+        else if (rank === 2) rankHTML = `<span class="sb-rank-2">🥈</span>`;
+        else if (rank === 3) rankHTML = `<span class="sb-rank-3">🥉</span>`;
+        else rankHTML = `${rank}<sup class="sb-rank-suffix">${sfx}</sup>`;
+
+        tr.innerHTML = `
+            <td>${rankHTML}</td>
+            <td>${escapeHTML(entry.name || '-.-')}</td>
+            <td>${entry.score.toLocaleString()}</td>
+            <td>${escapeHTML(entry.time || '--:--')}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function sbShowPercentile(myRank, total) {
+    const banner = document.getElementById('sb-percentile-banner');
+    if (!sbMyName || total === 0) { banner.classList.remove('show'); return; }
+
+    const pct = Math.round((1 - (myRank - 1) / total) * 100);
+    const sfx = rankSuffix(myRank);
+    banner.textContent =
+        `🎉 Congrats ${sbMyName}, you are in the top ${pct}%, on the ${myRank}${sfx} position!`;
+    banner.classList.add('show');
+}
+
+function sbJumpToMyPage() {
+    if (!sbMyName) return;
+    const idx = sbAllScores.findIndex(e => e.name === sbMyName && e.score === sbMyScore);
+    if (idx !== -1) {
+        sbPage = Math.floor(idx / ROWS_PER_PAGE);
+    }
+}
+
+function escapeHTML(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// ── Show scoreboard overlay ──────────────────────────────────
+
+function showScoreboard(scores) {
+    sbAllScores = scores || [];
+
+    // Find player's rank for percentile
+    let myRank = -1;
+    if (sbMyName) {
+        myRank = sbAllScores.findIndex(e => e.name === sbMyName && e.score === sbMyScore) + 1;
+    }
+    sbShowPercentile(myRank > 0 ? myRank : 0, sbAllScores.length);
+    sbJumpToMyPage();
+    sbRender();
+
+    document.getElementById('scoreboard-overlay').classList.add('visible');
+}
+
+function hideScoreboard() {
+    document.getElementById('scoreboard-overlay').classList.remove('visible');
+}
+
+// Pagination buttons
+document.getElementById('sb-prev').addEventListener('click', () => {
+    if (sbPage > 0) { sbPage--; sbRender(); }
+});
+document.getElementById('sb-next').addEventListener('click', () => {
+    const totalPages = Math.ceil(sbAllScores.length / ROWS_PER_PAGE);
+    if (sbPage < totalPages - 1) { sbPage++; sbRender(); }
+});
+
+// Play again from scoreboard
+document.getElementById('sb-play-again').addEventListener('click', () => {
+    hideScoreboard();
+    restartGame();
+});
+
+// ============================================================
+//  NAME PROMPT
+// ============================================================
+
+function showNamePrompt(won, score, elapsedSeconds, onDone) {
+    const overlay   = document.getElementById('name-overlay');
+    const icon      = document.getElementById('name-result-icon');
+    const title     = document.getElementById('name-result-title');
+    const scoreSpan = document.getElementById('name-final-score');
+    const input     = document.getElementById('player-name-input');
+
+    icon.textContent  = won ? '🎉' : '💀';
+    title.textContent = won ? 'You Won!' : 'Game Over';
+    scoreSpan.textContent = score.toLocaleString();
+    input.value = '';
+
+    overlay.classList.add('visible');
+    setTimeout(() => input.focus(), 350);
+
+    const timeStr = formatTime(elapsedSeconds);
+
+    async function submit() {
+        const name = input.value.trim().slice(0, 12) || 'Anon';
+        overlay.classList.remove('visible');
+        sbMyName  = name;
+        sbMyScore = score;
+        sbPage    = 0;
+
+        const scores = await apiPostScore(name, score, timeStr);
+        onDone(scores || [{ name, score, time: timeStr }]);
+    }
+
+    async function skip() {
+        overlay.classList.remove('visible');
+        sbMyName  = '';
+        sbMyScore = 0;
+        sbPage    = 0;
+        const scores = await apiGetScores();
+        onDone(scores || []);
+    }
+
+    // Wire up fresh listeners each time
+    const submitBtn = document.getElementById('name-submit-btn');
+    const skipBtn   = document.getElementById('name-skip-btn');
+
+    const freshSubmit = submitBtn.cloneNode(true);
+    const freshSkip   = skipBtn.cloneNode(true);
+    submitBtn.replaceWith(freshSubmit);
+    skipBtn.replaceWith(freshSkip);
+
+    document.getElementById('name-submit-btn').addEventListener('click', submit);
+    document.getElementById('name-skip-btn').addEventListener('click', skip);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submit();
+    });
+}
+
+// ============================================================
+//  STORY DATA
+// ============================================================
+const story = {
+    intro: {
+        title: "Chapter I — The Darkness Descends",
+        icon: "🌑",
+        paragraphs: [
+            "The Mushroom Kingdom once glowed with warmth and laughter. Children danced in meadows, coins clinked in the market square, and the great princess Rosalina watched over all from her star-lit tower.",
+            "But one moonless night, the Eternal Shadow — a wicked sorcerer banished long ago — crept back through the cracks between worlds. With a wave of his obsidian staff he shattered the Kingdom's Crystal Heart into ten fragments, scattering them across ten treacherous lands.",
+            "Without the Crystal Heart, darkness spreads a little more each hour. Crops wither. Skies turn grey. And the princess… has gone silent.",
+            "You are Mario, a humble plumber with an extraordinary heart. The elder of the village hands you a worn leather satchel. <em>\"Ten lands, ten fragments,\"</em> he whispers. <em>\"Only you can put the world back together.\"</em>",
+            "Your journey begins now. <strong>The Kingdom is counting on you.</strong>"
+        ],
+        buttonLabel: "Begin the Journey ▶"
+    },
+
+    development: {
+        title: "Chapter II — A Glimmer of Hope",
+        icon: "✨",
+        paragraphs: [
+            "You wipe the sweat from your brow. The first fragment glows faintly in your satchel — warm, like a small sun pressed against your ribs.",
+            "But a messenger crow swoops down, dropping a crumpled note. It reads:",
+            "<blockquote>\"Mario — the Shadow has learned of your quest. His generals march faster now. The eastern bridges are falling. If you do not reach the Storm Citadel before the last light fades, all is lost.\" — R</blockquote>",
+            "R. Only one person signs their name with a single letter. Princess Rosalina is alive.",
+            "A surge of hope floods your chest. You are not just collecting shards — you are racing against an army. Every coin gathered fuels the Kingdom's resistance. Every enemy stomped pushes back the tide of darkness.",
+            "<strong>Run faster, Mario. She's waiting.</strong>"
+        ],
+        buttonLabel: "Press On ▶"
+    },
+
+    victoryConclusion: {
+        title: "Epilogue — The Heart Restored",
+        icon: "💎",
+        paragraphs: [
+            "The last fragment slots into place with a sound like a thousand bells ringing at once.",
+            "A pillar of golden light erupts from the Crystal Heart, tearing through storm clouds that have choked the sky for weeks. Across the Kingdom, flowers open. Lanterns relight themselves. Children run out of their homes and stare upward, mouths open.",
+            "From the tower, a figure emerges — Rosalina, her silver gown trailing starlight. She descends the staircase and stops before you. Her eyes are tired, but they shine.",
+            "<em>\"I watched every step,\"</em> she says softly. <em>\"I called to the stars, and they led you here.\"</em>",
+            "The Eternal Shadow dissolves into nothing — not with a roar, but a sigh, as if it had always known this moment would come.",
+            "The elder was right. It was never about one hero. It was about a Kingdom worth fighting for.",
+            "<strong>🎉 The Crystal Heart is whole. The Mushroom Kingdom is saved. Well done, Mario.</strong>"
+        ],
+        buttonLabel: "Return Home 🏠"
+    },
+
+    defeatConclusion: {
+        title: "Epilogue — The Long Night",
+        icon: "🌑",
+        paragraphs: [
+            "The darkness closes in. The last fragment slips from your fingers and shatters on cold stone.",
+            "Across the Kingdom, lanterns gutter out one by one. The Crystal Heart, broken beyond mending, goes cold.",
+            "Yet even in defeat, your courage was not nothing. The villagers speak of a plumber who ran headlong into shadow without hesitation. They will remember. They will rebuild — slowly, painfully, in the dark.",
+            "<em>\"Every hero who tried made the next one a little stronger,\"</em> the elder says, placing a hand on your shoulder.",
+            "The Eternal Shadow laughs — but it is a hollow laugh. Because stories don't end with one chapter.",
+            "<strong>💪 The Kingdom endures. Try again, Mario — the Heart is waiting.</strong>"
+        ],
+        buttonLabel: "Check the Scoreboard ▶"
+    }
+};
+
+// ============================================================
+//  STORY OVERLAY – show / hide
+// ============================================================
+function showStoryCard(beat, onContinue) {
+    gameState.storyPaused = true;
+
+    const overlay = document.getElementById('story-overlay');
+    const icon    = document.getElementById('story-icon');
+    const title   = document.getElementById('story-title');
+    const body    = document.getElementById('story-body');
+    const btn     = document.getElementById('story-btn');
+
+    icon.textContent  = beat.icon;
+    title.textContent = beat.title;
+
+    body.innerHTML = beat.paragraphs.map(p => `<p>${p}</p>`).join('');
+    btn.textContent = beat.buttonLabel;
+
+    const freshBtn = btn.cloneNode(true);
+    btn.replaceWith(freshBtn);
+
+    document.getElementById('story-btn').addEventListener('click', () => {
+        hideStoryCard();
+        onContinue();
+    });
+
+    overlay.classList.add('visible');
+
+    const paragraphs = body.querySelectorAll('p');
+    paragraphs.forEach((p, i) => {
+        p.style.opacity    = '0';
+        p.style.transform  = 'translateY(16px)';
+        p.style.transition = `opacity 0.5s ${0.15 + i * 0.18}s, transform 0.5s ${0.15 + i * 0.18}s`;
+        requestAnimationFrame(() => {
+            p.style.opacity   = '1';
+            p.style.transform = 'translateY(0)';
+        });
+    });
+}
+
+function hideStoryCard() {
+    document.getElementById('story-overlay').classList.remove('visible');
+    gameState.storyPaused = false;
+}
+
+// ============================================================
+//  LEVELS
 // ============================================================
 const levels = [
-
     // ── Level 1 – Tutorial ───────────────────────────────────
     {
         platforms: [
@@ -83,7 +417,6 @@ const levels = [
         surpriseBlocks: [ { x: 320, y: 180, type: 'mushroom' } ],
         pipes: [ { x: 750, y: 320 } ]
     },
-
     // ── Level 2 – Staircase ──────────────────────────────────
     {
         platforms: [
@@ -111,7 +444,6 @@ const levels = [
         ],
         pipes: [ { x: 750, y: 320 } ]
     },
-
     // ── Level 3 – Island Hopping ─────────────────────────────
     {
         platforms: [
@@ -127,7 +459,7 @@ const levels = [
         ],
         enemies: [
             { x: 190, y: 340, type: 'red'  }, { x: 340, y: 340, type: 'red'  },
-            { x: 490, y: 340, type: 'red' }, { x: 640, y: 340, type: 'red' }
+            { x: 490, y: 340, type: 'red' },  { x: 640, y: 340, type: 'red' }
         ],
         coins: [
             { x: 115, y: 260 }, { x: 295, y: 220 }, { x: 475, y: 180 },
@@ -139,7 +471,6 @@ const levels = [
         ],
         pipes: [ { x: 740, y: 320 } ]
     },
-
     // ── Level 4 – Underground ────────────────────────────────
     {
         platforms: [
@@ -169,7 +500,6 @@ const levels = [
         ],
         pipes: [ { x: 740, y: 320 } ]
     },
-
     // ── Level 5 – Gauntlet ───────────────────────────────────
     {
         platforms: [
@@ -184,7 +514,7 @@ const levels = [
             { x: 460, y: 160, width: 40,  height: 20, type: 'red' }
         ],
         enemies: [
-            { x: 170, y: 304, type: 'red' }, { x: 290, y: 264, type: 'purple' },
+            { x: 170, y: 304, type: 'red' },    { x: 290, y: 264, type: 'purple' },
             { x: 410, y: 224, type: 'purple' }, { x: 530, y: 184, type: 'orange' },
             { x: 650, y: 224, type: 'orange' }, { x: 690, y: 340, type: 'brown'  },
             { x: 730, y: 340, type: 'brown'  }
@@ -201,7 +531,6 @@ const levels = [
         ],
         pipes: [ { x: 740, y: 320 } ]
     },
-
     // ── Level 6 – Zigzag Canyon ──────────────────────────────
     {
         platforms: [
@@ -231,7 +560,6 @@ const levels = [
         ],
         pipes: [ { x: 740, y: 320 } ]
     },
-
     // ── Level 7 – Twin Towers ────────────────────────────────
     {
         platforms: [
@@ -248,7 +576,7 @@ const levels = [
         ],
         enemies: [
             { x: 90,  y: 284, type: 'orange' }, { x: 90,  y: 224, type: 'orange' },
-            { x: 210, y: 164, type: 'red'  }, { x: 310, y: 164, type: 'red'  },
+            { x: 210, y: 164, type: 'red'  },   { x: 310, y: 164, type: 'red'  },
             { x: 430, y: 284, type: 'orange' }, { x: 590, y: 264, type: 'red'  },
             { x: 690, y: 204, type: 'orange' }
         ],
@@ -264,7 +592,6 @@ const levels = [
         ],
         pipes: [ { x: 740, y: 320 } ]
     },
-
     // ── Level 8 – Serpent Path ───────────────────────────────
     {
         platforms: [
@@ -297,7 +624,6 @@ const levels = [
         ],
         pipes: [ { x: 740, y: 320 } ]
     },
-
     // ── Level 9 – Checkerboard ───────────────────────────────
     {
         platforms: [
@@ -319,9 +645,9 @@ const levels = [
         ],
         enemies: [
             { x: 65,  y: 294, type: 'brown'  }, { x: 185, y: 294, type: 'orange' },
-            { x: 305, y: 294, type: 'red'  }, { x: 425, y: 294, type: 'purple' },
+            { x: 305, y: 294, type: 'red'  },   { x: 425, y: 294, type: 'purple' },
             { x: 545, y: 294, type: 'brown'  }, { x: 125, y: 234, type: 'orange' },
-            { x: 365, y: 234, type: 'red'  }, { x: 605, y: 234, type: 'purple' }
+            { x: 365, y: 234, type: 'red'  },   { x: 605, y: 234, type: 'purple' }
         ],
         coins: [
             { x: 75,  y: 290 }, { x: 195, y: 290 }, { x: 315, y: 290 },
@@ -336,7 +662,6 @@ const levels = [
         ],
         pipes: [ { x: 740, y: 320 } ]
     },
-
     // ── Level 10 – Final Boss Rush ───────────────────────────
     {
         platforms: [
@@ -353,12 +678,12 @@ const levels = [
             { x: 680, y: 200, width: 80,  height: 20, type: 'red' }
         ],
         enemies: [
-            { x: 210, y: 324, type: 'orange' }, { x: 330, y: 294, type: 'red' },
+            { x: 210, y: 324, type: 'orange' }, { x: 330, y: 294, type: 'red'    },
             { x: 450, y: 264, type: 'orange' }, { x: 570, y: 234, type: 'purple' },
             { x: 670, y: 344, type: 'orange' }, { x: 710, y: 344, type: 'brown'  },
-            { x: 150, y: 224, type: 'red'  }, { x: 290, y: 194, type: 'brown'  },
+            { x: 150, y: 224, type: 'red'    }, { x: 290, y: 194, type: 'brown'  },
             { x: 430, y: 164, type: 'purple' }, { x: 570, y: 134, type: 'purple' },
-            { x: 690, y: 184, type: 'red'  }
+            { x: 690, y: 184, type: 'red'    }
         ],
         coins: [
             { x: 215, y: 320 }, { x: 335, y: 290 }, { x: 455, y: 260 },
@@ -388,6 +713,18 @@ function initGame() {
     requestAnimationFrame(gameLoop);
 }
 
+function startWithIntro() {
+    if (!storyState.introShown) {
+        storyState.introShown = true;
+        showStoryCard(story.intro, () => {
+            gameStartTime = performance.now();
+            lastFrameTime = performance.now();
+            totalPausedMs = 0;
+            requestAnimationFrame(gameLoop);
+        });
+    }
+}
+
 // ============================================================
 //  LOAD LEVEL
 // ============================================================
@@ -399,7 +736,6 @@ function loadLevel(levelIndex) {
     const level    = levels[levelIndex];
     const gameArea = document.getElementById('game-area');
 
-    // Reset player  (BUG FIX: was player.Big — capital B = never reset)
     player.x = 50; player.y = 340;
     player.velocityX = 0; player.velocityY = 0;
     player.onGround = false;
@@ -407,7 +743,6 @@ function loadLevel(levelIndex) {
     player.element.className = '';
     setTransform(player.element, player.x, player.y);
 
-    // Platforms
     level.platforms.forEach((pd, i) => {
         const el = createElement('div', `platform ${pd.type}`, {
             left: pd.x + 'px', top: pd.y + 'px',
@@ -417,7 +752,6 @@ function loadLevel(levelIndex) {
         gameObjects.platforms.push({ element: el, ...pd, id: 'platform-' + i });
     });
 
-    // Enemies
     level.enemies.forEach((ed, i) => {
         const el = createElement('div', `enemy ${ed.type}`, {
             left: ed.x + 'px', top: ed.y + 'px'
@@ -429,7 +763,6 @@ function loadLevel(levelIndex) {
         });
     });
 
-    // Coins
     level.coins.forEach((cd, i) => {
         const el = createElement('div', 'coin', { left: cd.x + 'px', top: cd.y + 'px' });
         gameArea.appendChild(el);
@@ -439,7 +772,6 @@ function loadLevel(levelIndex) {
         });
     });
 
-    // Surprise blocks
     level.surpriseBlocks.forEach((bd, i) => {
         const el = createElement('div', 'surprise-block', { left: bd.x + 'px', top: bd.y + 'px' });
         gameArea.appendChild(el);
@@ -449,7 +781,6 @@ function loadLevel(levelIndex) {
         });
     });
 
-    // Pipes
     level.pipes.forEach((pd, i) => {
         const pipe = createElement('div', 'pipe', { left: pd.x + 'px', top: pd.y + 'px' });
         pipe.append(
@@ -466,17 +797,6 @@ function loadLevel(levelIndex) {
 // ============================================================
 //  HELPERS
 // ============================================================
-
-/**
- * setTransform  –  moves an element using CSS transform:translate()
- * instead of changing left/top.  This keeps the browser in the
- * COMPOSITE step only (GPU), skipping Layout and Paint entirely.
- * The element must have  left:0; top:0  set in CSS.
- *
- * WHY THIS MATTERS FOR 60 FPS:
- *   left/top  → triggers Layout → Paint → Composite  (slow)
- *   transform → skips to Composite only              (fast, no jank)
- */
 function setTransform(el, x, y) {
     el.style.transform = `translate(${x}px,${y}px)`;
 }
@@ -495,36 +815,46 @@ function clearLevel() {
     gameObjects = { platforms: [], enemies: [], coins: [], surpriseBlocks: [], pipes: [] };
 }
 
+// ============================================================
+//  GAME OVER  →  story card  →  name prompt  →  scoreboard
+// ============================================================
 function showGameOver(won) {
     gameState.gameRunning = false;
-    document.getElementById('game-over-title').textContent =
-        won ? '🎉 Congratulations! You Won!' : '💀 Game Over';
-    document.getElementById('final-score').textContent = gameState.score;
-    document.getElementById('game-over').style.display = 'flex';
+
+    // Snapshot elapsed time before anything pauses the clocks
+    const elapsedSeconds = Math.floor(
+        (performance.now() - gameStartTime - totalPausedMs) / 1000
+    );
+    const finalScore = gameState.score;
+
+    storyState.conclusionShown = true;
+    const conclusionBeat = won ? story.victoryConclusion : story.defeatConclusion;
+
+    showStoryCard(conclusionBeat, () => {
+        // After story card → name prompt
+        showNamePrompt(won, finalScore, elapsedSeconds, (scores) => {
+            // After name entered/skipped → scoreboard
+            showScoreboard(scores);
+        });
+    });
 }
 
-// ============================================================wdw
+// ============================================================
 //  PAUSE MENU
 // ============================================================
 function togglePause() {
     if (!gameState.gameRunning) return;
+    if (gameState.storyPaused)  return;
 
     gameState.gamePaused = !gameState.gamePaused;
     document.getElementById('pause-menu').style.display =
         gameState.gamePaused ? 'flex' : 'none';
 
     if (gameState.gamePaused) {
-        // Record when we paused
         pausedAt = performance.now();
-        // NOTE: we do NOT call requestAnimationFrame here.
-        // The loop naturally stops because gameLoop returns early.
-        // This means ZERO CPU/GPU cost while paused.
     } else {
-        // Add the duration we were paused to the running total
         totalPausedMs += performance.now() - pausedAt;
-        // Re-anchor lastFrameTime so the FPS delta doesn't spike
         lastFrameTime = performance.now();
-        // Restart the animation loop
         requestAnimationFrame(gameLoop);
     }
 }
@@ -540,9 +870,7 @@ document.getElementById('pause-restart').addEventListener('click', () => {
 });
 
 // ============================================================
-//  INPUT  –  smooth held-key via keydown/keyup state map
-//  Pressing and HOLDING a key keeps the action going every frame.
-//  Releasing immediately stops it. No key-repeat delay or spam needed.
+//  INPUT
 // ============================================================
 document.addEventListener('keydown', (e) => {
     gameState.keys[e.code] = true;
@@ -558,27 +886,21 @@ document.addEventListener('keyup', (e) => {
 });
 
 // ============================================================
-//  GAME LOOP  –  requestAnimationFrame with timestamp
-//
-//  The browser passes a DOMHighResTimeStamp to the callback.
-//  We use this to compute an accurate frame delta for FPS tracking.
-//  We do NOT call gameLoop() ourselves — only rAF does.
+//  GAME LOOP
 // ============================================================
 function gameLoop(timestamp) {
-    if (!gameState.gameRunning) return;   // stop loop after game over
-    if (gameState.gamePaused)   return;   // stop loop while paused — no wasted frames
+    if (!gameState.gameRunning) return;
+    if (gameState.gamePaused)   return;
+    if (gameState.storyPaused)  return;
 
-    // ── FPS measurement ──────────────────────────────────────
     const delta   = timestamp - lastFrameTime;
     lastFrameTime = timestamp;
 
-    // Rolling average over the last FPS_SAMPLES frames
     frameTimes.push(delta);
     if (frameTimes.length > FPS_SAMPLES) frameTimes.shift();
     const avgDelta = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
     const fps      = Math.round(1000 / avgDelta);
 
-    // Colour-coded FPS badge: green ≥55, yellow ≥30, red = jank
     const fpsEl = document.getElementById('fps');
     if (fpsEl) {
         fpsEl.textContent = fps;
@@ -588,38 +910,47 @@ function gameLoop(timestamp) {
     }
 
     update();
-    requestAnimationFrame(gameLoop);   // schedule next frame
+    requestAnimationFrame(gameLoop);
 }
 
 // ============================================================
-//  UPDATE  –  all game logic runs once per frame
+//  UPDATE
 // ============================================================
 function update() {
 
-    // ── Horizontal movement ───────────────────────────────────
+    // ── Mid-game story beat ───────────────────────────────────
+    if (!storyState.developmentShown && gameState.score >= STORY_SCORE_THRESHOLD) {
+        storyState.developmentShown = true;
+        gameState.storyPaused = true;
+        setTimeout(() => {
+            showStoryCard(story.development, () => {
+                lastFrameTime = performance.now();
+                requestAnimationFrame(gameLoop);
+            });
+        }, 200);
+        return;
+    }
+
     if (gameState.keys['ArrowLeft'] || gameState.keys['KeyA']) {
         player.velocityX = -MOVE_SPEED;
     } else if (gameState.keys['ArrowRight'] || gameState.keys['KeyD']) {
         player.velocityX = MOVE_SPEED;
     } else {
-        player.velocityX *= 0.8;   // smooth deceleration when key released
+        player.velocityX *= 0.8;
     }
 
-    // ── Jump (only when on ground — no double-jump) ───────────
     if ((gameState.keys['Space'] || gameState.keys['ArrowUp'] || gameState.keys['KeyW'])
             && player.onGround) {
         player.velocityY = JUMP_FORCE;
         player.onGround  = false;
     }
 
-    // ── Gravity ───────────────────────────────────────────────
     if (!player.onGround) player.velocityY += GRAVITY;
 
     player.x += player.velocityX;
     player.y += player.velocityY;
     player.onGround = false;
 
-    // ── Platform collision ────────────────────────────────────
     for (const platform of gameObjects.platforms) {
         if (checkCollision(player, platform) && player.velocityY > 0) {
             player.y         = platform.y - player.height;
@@ -628,7 +959,6 @@ function update() {
         }
     }
 
-    // ── Pipe top collision (solid surface) ───────────────────
     for (const pipe of gameObjects.pipes) {
         if (checkCollision(player, pipe) && player.velocityY > 0) {
             player.y         = pipe.y - player.height;
@@ -637,13 +967,11 @@ function update() {
         }
     }
 
-    // ── Enemy movement & collision ────────────────────────────
     for (const enemy of gameObjects.enemies) {
         if (!enemy.alive) continue;
 
         enemy.x += enemy.speed * enemy.direction;
 
-        // Reverse direction if off a platform edge or at world boundary
         let onPlatform = false;
         for (const platform of gameObjects.platforms) {
             if (enemy.x + enemy.width > platform.x &&
@@ -659,16 +987,13 @@ function update() {
         enemy.element.style.left = enemy.x + 'px';
         enemy.element.style.top  = enemy.y + 'px';
 
-        // Player-enemy collision
         if (checkCollision(player, enemy)) {
             if (player.velocityY > 0 && player.y < enemy.y) {
-                // Stomp
                 enemy.alive = false;
                 enemy.element.remove();
                 player.velocityY  = JUMP_FORCE * 0.7;
                 gameState.score  += 100;
             } else if (player.big) {
-                // Shrink instead of dying
                 player.big      = false;
                 player.bigTimer = 0;
                 player.element.classList.remove('big');
@@ -679,7 +1004,6 @@ function update() {
         }
     }
 
-    // ── Coin collection ───────────────────────────────────────
     for (const coin of gameObjects.coins) {
         if (!coin.collected && checkCollision(player, coin)) {
             coin.collected = true;
@@ -688,7 +1012,6 @@ function update() {
         }
     }
 
-    // ── Surprise blocks ───────────────────────────────────────
     for (const block of gameObjects.surpriseBlocks) {
         if (!block.hit && checkCollision(player, block) && player.velocityY < 0) {
             block.hit = true;
@@ -700,13 +1023,12 @@ function update() {
                 player.element.classList.add('big');
                 player.width = 40; player.height = 40;
                 gameState.score += 100;
-            } else if (block.type === 'coin') {   // BUG FIX: was ' coin' (leading space)
+            } else if (block.type === 'coin') {
                 gameState.score += 50;
             }
         }
     }
 
-    // ── Pipe → advance to next level ─────────────────────────
     for (const pipe of gameObjects.pipes) {
         if (player.onGround &&
             player.x + player.width > pipe.x &&
@@ -717,18 +1039,14 @@ function update() {
         }
     }
 
-    // ── Fall death ────────────────────────────────────────────
     if (player.y > 400) loseLife();
 
-    // ── Render player using transform (GPU compositing only) ──
     setTransform(player.element, player.x, player.y);
 
-    // ── HUD ───────────────────────────────────────────────────
     document.getElementById('score').textContent  = gameState.score;
     document.getElementById('levels').textContent = gameState.level;
     document.getElementById('lives').textContent  = gameState.lives;
 
-    // Timer: real elapsed time minus any time spent in pause menu
     const elapsed = Math.floor(
         (performance.now() - gameStartTime - totalPausedMs) / 1000
     );
@@ -736,7 +1054,7 @@ function update() {
 }
 
 // ============================================================
-//  COLLISION  (AABB)
+//  COLLISION
 // ============================================================
 function checkCollision(a, b) {
     return a.x < b.x + b.width  &&
@@ -746,7 +1064,7 @@ function checkCollision(a, b) {
 }
 
 // ============================================================
-//  ITEM SPAWN  (mushroom falls, coin floats up)
+//  ITEM SPAWN
 // ============================================================
 function spawnItemOnBox(block, type) {
     const gameArea = document.getElementById('game-area');
@@ -784,7 +1102,6 @@ function spawnItemOnBox(block, type) {
         })();
 
     } else if (type === 'coin') {
-        // BUG FIX: was `frames >= 180` which ran the animation forever
         (function floatUp() {
             obj.y -= 1;
             item.style.top = obj.y + 'px';
@@ -831,17 +1148,34 @@ function restartGame() {
     totalPausedMs = 0;
     frameTimes    = [];
 
-    gameState = { score: 0, level: 1, lives: 3, gameRunning: true, gamePaused: false, keys: {} };
+    storyState = { introShown: false, developmentShown: false, conclusionShown: false };
+
+    gameState = {
+        score: 0, level: 1, lives: 3,
+        gameRunning: true, gamePaused: false, storyPaused: false,
+        keys: {}
+    };
+
     player.big = false; player.bigTimer = 0;
     player.element.classList.remove('big');
     player.width = 20; player.height = 20;
 
-    document.getElementById('game-over').style.display  = 'none';
-    document.getElementById('pause-menu').style.display = 'none';
-    initGame();
+    document.getElementById('game-over').style.display   = 'none';
+    document.getElementById('pause-menu').style.display  = 'none';
+    document.getElementById('story-overlay').classList.remove('visible');
+    document.getElementById('name-overlay').classList.remove('visible');
+    hideScoreboard();
+
+    sbMyName  = '';
+    sbMyScore = 0;
+    sbPage    = 0;
+
+    loadLevel(0);
+    startWithIntro();
 }
 
 document.getElementById('restart-button').addEventListener('click', restartGame);
 
-// ── Start ─────────────────────────────────────────────────────
-initGame();
+// ── Boot ─────────────────────────────────────────────────────
+loadLevel(0);
+startWithIntro();

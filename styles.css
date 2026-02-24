@@ -1,15 +1,14 @@
 /* ============================================================
-   MARIO JS  –  Stylesheet
-   Layer strategy:
-     - #mario uses  will-change: transform  → own compositor layer
-     - enemies use will-change: transform   → own compositor layer
-     - Static elements (platforms, coins, pipes) share the default layer
-     - Total promoted layers: 2 (mario + each live enemy)
-     - This is "minimal but not zero" as required
+   MARIO JS  –  Stylesheet  (with Story Mode + Scoreboard)
    ============================================================ */
 
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
 body {
     padding: 16px 0 32px;
@@ -25,7 +24,7 @@ body {
 h1 {
     font-size: 26px;
     margin-bottom: 10px;
-    text-shadow: 3px 3px 0 #c00, 0 0 20px rgba(255,80,80,0.4);
+    text-shadow: 3px 3px 0 #c00, 0 0 20px rgba(255, 80, 80, 0.4);
     letter-spacing: 3px;
 }
 
@@ -35,9 +34,8 @@ h1 {
     border: 3px solid #ffe033;
     border-radius: 12px;
     padding: 10px 10px 12px;
-    box-shadow: 0 0 40px rgba(255,224,51,0.15), 0 8px 32px rgba(0,0,0,0.6);
+    box-shadow: 0 0 40px rgba(255, 224, 51, 0.15), 0 8px 32px rgba(0, 0, 0, 0.6);
 }
-
 
 /* ── HUD ──────────────────────────────────────────────────── */
 .ui {
@@ -50,9 +48,10 @@ h1 {
     min-width: 800px;
 }
 
-.ui p { margin: 0; }
+.ui p {
+    margin: 0;
+}
 
-/* FPS badge – colour is set dynamically by JS */
 .fps-badge {
     font-size: 13px;
     font-weight: bold;
@@ -77,16 +76,14 @@ h1 {
 /* ── Player ───────────────────────────────────────────────── */
 #mario {
     position: absolute;
-    left: 0;          /* IMPORTANT: transform is relative to this origin */
-    top:  0;
+    left: 0;
+    top: 0;
     width: 20px;
     height: 20px;
     background-image: url('./images/m.png');
     background-size: cover;
     background-repeat: no-repeat;
     z-index: 100;
-    /* Promote to its own compositor layer so only compositing
-       runs each frame — no Layout or Paint triggered by transform */
     will-change: transform;
 }
 
@@ -132,25 +129,27 @@ h1 {
     position: absolute;
     width: 20px;
     height: 20px;
-    /* Each enemy gets its own compositor layer for smooth movement */
     will-change: transform;
 }
 
-.enemy.brown  {
+.enemy.brown {
     background-size: cover;
     background-repeat: no-repeat;
-    background-image: url('./images/enemybrown.png'); 
+    background-image: url('./images/enemybrown.png');
 }
-.enemy.red  {
+
+.enemy.red {
     background-size: cover;
     background-repeat: no-repeat;
-    background-image: url('./images/enemyR.png'); 
+    background-image: url('./images/enemyR.png');
 }
-.enemy.orange  {
+
+.enemy.orange {
     background-size: cover;
     background-repeat: no-repeat;
-    background-image: url('./images/enemyO.png'); 
+    background-image: url('./images/enemyO.png');
 }
+
 .enemy.purple {
     background-size: cover;
     background-repeat: no-repeat;
@@ -174,7 +173,7 @@ h1 {
 }
 
 @keyframes coinSpin {
-    from { transform: rotateY(0deg);   }
+    from { transform: rotateY(0deg); }
     to   { transform: rotateY(360deg); }
 }
 
@@ -244,7 +243,8 @@ h1 {
 /* ── Pause Menu overlay ───────────────────────────────────── */
 #pause-menu {
     position: absolute;
-    top: 50%; left: 50%;
+    top: 50%;
+    left: 50%;
     transform: translate(-50%, -50%);
     background: rgba(0, 0, 0, 0.90);
     border: 3px solid #ffe033;
@@ -253,7 +253,7 @@ h1 {
     padding: 30px 44px;
     text-align: center;
     z-index: 900;
-    display: none;                  /* shown via JS */
+    display: none;
     flex-direction: column;
     align-items: center;
     gap: 14px;
@@ -277,7 +277,8 @@ h1 {
 /* ── Game Over overlay ────────────────────────────────────── */
 #game-over {
     position: absolute;
-    top: 50%; left: 50%;
+    top: 50%;
+    left: 50%;
     transform: translate(-50%, -50%);
     background: rgba(0, 0, 0, 0.88);
     border: 3px solid #fff;
@@ -286,7 +287,7 @@ h1 {
     padding: 30px 40px;
     text-align: center;
     z-index: 1000;
-    display: none;                  /* shown via JS */
+    display: none;
     flex-direction: column;
     align-items: center;
     gap: 10px;
@@ -321,7 +322,6 @@ h1 {
     background-color: #2a60b0;
 }
 
-/* Game Over restart button */
 #restart-button {
     background-color: #ff6b6b;
     color: #fff;
@@ -336,4 +336,493 @@ h1 {
     transition: background-color 0.15s;
 }
 
-#restart-button:hover { background-color: #ff5252; }
+#restart-button:hover {
+    background-color: #ff5252;
+}
+
+
+/* ============================================================
+   STORY MODE OVERLAY
+   ============================================================ */
+
+#story-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 950;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(ellipse at 30% 40%, rgba(80, 40, 140, 0.35) 0%, transparent 60%),
+        radial-gradient(ellipse at 70% 60%, rgba(20, 80, 160, 0.30) 0%, transparent 60%),
+        rgba(5, 5, 20, 0.93);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+
+#story-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* ── Story card ─────────────────────────────────────────────── */
+.story-card {
+    position: relative;
+    width: 680px;
+    max-height: 370px;
+    background: linear-gradient(160deg, #0d0d22 0%, #12122a 60%, #0a1228 100%);
+    border: 2px solid rgba(255, 224, 51, 0.55);
+    border-radius: 10px;
+    padding: 28px 36px 24px;
+    overflow-y: auto;
+    box-shadow:
+        0 0 60px rgba(255, 200, 50, 0.12),
+        0 0 120px rgba(100, 60, 200, 0.15),
+        inset 0 0 40px rgba(0, 0, 0, 0.4);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 224, 51, 0.3) transparent;
+    transform: translateY(12px);
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#story-overlay.visible .story-card {
+    transform: translateY(0);
+}
+
+.story-card::-webkit-scrollbar { width: 4px; }
+.story-card::-webkit-scrollbar-thumb {
+    background: rgba(255, 224, 51, 0.3);
+    border-radius: 2px;
+}
+
+/* ── Corner decorative accents ──────────────────────────────── */
+.story-card-deco {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-color: rgba(255, 224, 51, 0.7);
+    border-style: solid;
+}
+.story-card-deco.top-left    { top: 6px;    left: 6px;    border-width: 2px 0 0 2px; }
+.story-card-deco.top-right   { top: 6px;    right: 6px;   border-width: 2px 2px 0 0; }
+.story-card-deco.bottom-left { bottom: 6px; left: 6px;    border-width: 0 0 2px 2px; }
+.story-card-deco.bottom-right{ bottom: 6px; right: 6px;   border-width: 0 2px 2px 0; }
+
+/* ── Story icon ─────────────────────────────────────────────── */
+.story-icon {
+    font-size: 36px;
+    text-align: center;
+    margin-bottom: 6px;
+    animation: storyIconPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes storyIconPulse {
+    0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 0px  rgba(255, 224, 51, 0));   }
+    50%       { transform: scale(1.08); filter: drop-shadow(0 0 8px  rgba(255, 224, 51, 0.5)); }
+}
+
+/* ── Chapter title ──────────────────────────────────────────── */
+#story-title {
+    text-align: center;
+    font-size: 17px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #ffe033;
+    margin-bottom: 14px;
+    text-shadow: 0 0 12px rgba(255, 224, 51, 0.4);
+}
+
+/* ── Body paragraphs ────────────────────────────────────────── */
+.story-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.story-body p {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #c8cfe8;
+    font-family: Georgia, 'Times New Roman', serif;
+}
+.story-body em       { color: #a8d8ff; font-style: italic; }
+.story-body strong   { color: #ffe033; font-weight: bold; }
+.story-body blockquote {
+    border-left: 3px solid rgba(255, 224, 51, 0.45);
+    padding-left: 12px;
+    margin: 4px 0;
+    color: #a8d8ff;
+    font-style: italic;
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+
+/* ── Continue button ────────────────────────────────────────── */
+.story-btn {
+    display: block;
+    margin: 0 auto;
+    padding: 10px 32px;
+    background: transparent;
+    border: 2px solid rgba(255, 224, 51, 0.7);
+    border-radius: 6px;
+    color: #ffe033;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, transform 0.15s, box-shadow 0.2s;
+    animation: storyBtnBlink 1.6s ease-in-out infinite;
+}
+.story-btn:hover {
+    background: rgba(255, 224, 51, 0.15);
+    box-shadow: 0 0 18px rgba(255, 224, 51, 0.3);
+    transform: scale(1.04);
+    animation: none;
+}
+@keyframes storyBtnBlink {
+    0%, 100% { box-shadow: 0 0 0px  rgba(255, 224, 51, 0);    }
+    50%       { box-shadow: 0 0 14px rgba(255, 224, 51, 0.35); }
+}
+
+
+/* ============================================================
+   NAME PROMPT OVERLAY
+   ============================================================ */
+
+#name-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 960;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(ellipse at 60% 30%, rgba(255, 150, 50, 0.18) 0%, transparent 55%),
+        rgba(5, 5, 20, 0.94);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+
+#name-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.name-card {
+    position: relative;
+    width: 440px;
+    background: linear-gradient(160deg, #0d0d22 0%, #12122a 60%, #0a1228 100%);
+    border: 2px solid rgba(255, 224, 51, 0.55);
+    border-radius: 10px;
+    padding: 30px 36px 28px;
+    text-align: center;
+    box-shadow:
+        0 0 60px rgba(255, 200, 50, 0.12),
+        inset 0 0 40px rgba(0, 0, 0, 0.4);
+    transform: translateY(14px);
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#name-overlay.visible .name-card {
+    transform: translateY(0);
+}
+
+.name-icon {
+    font-size: 42px;
+    margin-bottom: 8px;
+    animation: storyIconPulse 2.8s ease-in-out infinite;
+}
+
+#name-result-title {
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #ffe033;
+    margin-bottom: 4px;
+    text-shadow: 0 0 10px rgba(255, 224, 51, 0.35);
+}
+
+#name-result-subtitle {
+    font-size: 15px;
+    color: #c8cfe8;
+    margin-bottom: 22px;
+}
+
+#name-result-subtitle span {
+    color: #ffe033;
+    font-weight: bold;
+}
+
+.name-form label {
+    display: block;
+    font-size: 12px;
+    color: #9090b0;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.name-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 224, 51, 0.4);
+    border-radius: 6px;
+    color: #ffe033;
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 10px 14px;
+    text-align: center;
+    letter-spacing: 2px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    margin-bottom: 16px;
+}
+
+.name-input::placeholder { color: rgba(255, 224, 51, 0.25); }
+
+.name-input:focus {
+    border-color: rgba(255, 224, 51, 0.85);
+    box-shadow: 0 0 14px rgba(255, 224, 51, 0.2);
+}
+
+.name-btn-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.name-submit-btn {
+    width: 100%;
+}
+
+.name-skip-btn {
+    background: none;
+    border: none;
+    color: #555577;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: color 0.2s;
+}
+.name-skip-btn:hover { color: #8888aa; }
+
+
+/* ============================================================
+   SCOREBOARD OVERLAY
+   Arcade-style leaderboard — dark, golden, pixel-edged.
+   ============================================================ */
+
+#scoreboard-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 970;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(ellipse at 25% 35%, rgba(80, 40, 140, 0.28) 0%, transparent 55%),
+        radial-gradient(ellipse at 75% 65%, rgba(255, 180, 30, 0.12) 0%, transparent 55%),
+        rgba(4, 4, 18, 0.96);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+
+#scoreboard-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.scoreboard-card {
+    position: relative;
+    width: 680px;
+    background: linear-gradient(160deg, #0b0b20 0%, #10101e 60%, #080c1a 100%);
+    border: 2px solid rgba(255, 224, 51, 0.6);
+    border-radius: 10px;
+    padding: 22px 32px 22px;
+    box-shadow:
+        0 0 80px rgba(255, 200, 50, 0.14),
+        0 0 140px rgba(80, 40, 200, 0.12),
+        inset 0 0 60px rgba(0, 0, 0, 0.5);
+    transform: translateY(14px);
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#scoreboard-overlay.visible .scoreboard-card {
+    transform: translateY(0);
+}
+
+/* Header row */
+.sb-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.sb-trophy {
+    font-size: 22px;
+    filter: drop-shadow(0 0 6px rgba(255, 200, 50, 0.5));
+}
+
+.sb-title {
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    color: #ffe033;
+    text-shadow: 0 0 14px rgba(255, 224, 51, 0.5), 3px 3px 0 rgba(0,0,0,0.5);
+    text-transform: uppercase;
+}
+
+/* Percentile banner */
+.sb-percentile-banner {
+    text-align: center;
+    font-size: 13px;
+    color: #a8ffb8;
+    background: rgba(0, 200, 80, 0.1);
+    border: 1px solid rgba(0, 200, 80, 0.3);
+    border-radius: 5px;
+    padding: 7px 14px;
+    margin-bottom: 14px;
+    font-style: italic;
+    letter-spacing: 0.5px;
+    display: none; /* hidden until data arrives */
+}
+.sb-percentile-banner.show { display: block; }
+
+/* Table */
+.sb-table-wrap {
+    overflow: hidden;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 224, 51, 0.2);
+    margin-bottom: 14px;
+}
+
+.sb-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+}
+
+.sb-table thead tr {
+    background: rgba(255, 224, 51, 0.1);
+    border-bottom: 1px solid rgba(255, 224, 51, 0.3);
+}
+
+.sb-table th {
+    padding: 9px 14px;
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255, 224, 51, 0.75);
+    font-weight: bold;
+}
+
+.sb-table th:first-child { width: 72px; text-align: center; }
+.sb-table th:nth-child(3),
+.sb-table th:nth-child(4) { text-align: right; }
+
+.sb-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: #c8cfe8;
+    vertical-align: middle;
+}
+
+.sb-table td:first-child { text-align: center; font-weight: bold; }
+.sb-table td:nth-child(3),
+.sb-table td:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
+
+.sb-table tbody tr:last-child td { border-bottom: none; }
+
+.sb-table tbody tr:hover {
+    background: rgba(255, 224, 51, 0.05);
+}
+
+/* Row highlight for the current player */
+.sb-table tbody tr.sb-my-row {
+    background: rgba(255, 224, 51, 0.10);
+}
+.sb-table tbody tr.sb-my-row td {
+    color: #ffe033;
+}
+
+/* Rank medal colors */
+.sb-rank-1  { color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.6); font-size: 16px; }
+.sb-rank-2  { color: #c0c0c0; text-shadow: 0 0 6px rgba(192,192,192,0.5); font-size: 15px; }
+.sb-rank-3  { color: #cd7f32; text-shadow: 0 0 6px rgba(205,127,50,0.5); font-size: 15px; }
+
+/* Rank suffix */
+.sb-rank-suffix { font-size: 10px; vertical-align: super; }
+
+/* Empty state */
+.sb-empty {
+    text-align: center;
+    padding: 28px 0;
+    color: #555577;
+    font-style: italic;
+    font-size: 13px;
+}
+
+/* Pagination */
+.sb-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 16px;
+}
+
+.sb-page-btn {
+    background: rgba(255, 224, 51, 0.08);
+    border: 1px solid rgba(255, 224, 51, 0.35);
+    border-radius: 4px;
+    color: #ffe033;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 4px 16px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+.sb-page-btn:hover:not(:disabled) {
+    background: rgba(255, 224, 51, 0.18);
+    transform: scale(1.05);
+}
+.sb-page-btn:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+.sb-page-info {
+    font-size: 12px;
+    color: #7070a0;
+    letter-spacing: 1px;
+    min-width: 90px;
+    text-align: center;
+}
+
+/* Actions */
+.sb-actions {
+    display: flex;
+    justify-content: center;
+}
+
+.sb-actions .story-btn {
+    padding: 9px 38px;
+    font-size: 14px;
+}
