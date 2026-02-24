@@ -10,8 +10,10 @@
     <h1>🍄 Mario Game 🍄</h1>
 
     <div class="game-container">
+        
 
-        <div class="ui">
+        <div id="timer">Time: <span id="time">0</span>s</div>
+        <div class="ui">    
             <p>Score: <span id="score">0</span></p>
             <p>Levels: <span id="levels">1</span></p>
             <p>Lives: <span id="lives">3</span></p>
@@ -28,11 +30,12 @@
         </div>
     </div>
 
-    <div class="game-over">
+    <div id="game-over">
         <h2 id="game-over-title">Game Over</h2>
-        <p>Your final score: <span id="final-score">0</span></p>
+        <p>Score: <span id="final-score">0</span></p>
         <button id="restart-button">Play Again</button>
     </div>
+    <canvas></canvas>
 
     <script src="app.js"></script>
 </body>

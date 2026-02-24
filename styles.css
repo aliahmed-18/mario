@@ -1,7 +1,7 @@
 body {
     margin: 0;
     padding: 0;
-    background: linear-gradient(to bottom, #5c94fc, #87cee8);
+    background: linear-gradient(to bottom, #606060, #dfdfdf);
     font-family: 'Courier New', monospace;
     display: flex;
     flex-direction: column;
@@ -27,15 +27,18 @@ body {
 }
 
 #game-area {
+    position: relative;
     width: 800px;
     height: 400px;
-    background: linear-gradient(to bottom, #5c94fc 80%, #228b22 100%);
+    background: linear-gradient(to bottom, #5c94fc 80%, #228b22 80%, #228b22 100%);
     border: 2px solid #333;
     overflow: hidden;
 }
 
 #mario {
     position: absolute;
+    background-size: cover;
+    background-repeat: no-repeat;
     width: 20px;
     height: 20px;
     background-image: url('./images/mario.png');
@@ -49,36 +52,67 @@ body {
 }
 
 .platform {
-    width: 20px;
-    height: 20px;
+    position: absolute;
+    background-size: 20px 20px;
+    background-repeat: repeat;
     background-image: url('./images/platform.png');
 }
 
 .platform.ground {
+    position: absolute;
     width: 20px;
     height: 20px;
+    background-repeat: repeat;
+    background-image: url('./images/platform.png');
+}
+
+.platform.floating {
+    position: absolute;
+    background-size: 20px 20px;
+    background-repeat: repeat;
     background-image: url('./images/platform.png');
 }
 
 .platform.blue {
-    width: 20px;
-    height: 20px;
-    background-image: url('./images/platform-blue.png');
+    position: absolute;
+    background-size: 20px 20px;
+    background-repeat: repeat;
+    background-image: url('./images/platformB.png');
 }
 
-.enemy {
+.platform.red {
+    position: absolute;
+    background-size: 20px 20px;
+    background-repeat: repeat;
+    background-image: url('./images/platformR.png');
+}
+
+.enemy.brown {
+    position: absolute;
     width: 20px;
     height: 20px;
-    background-image: url('./images/enemy.png');
+    background-image: url('./images/enemyR.png');
 }
 
 .enemy.purple {
+    position: absolute;
+    background-size: cover;
+    background-repeat: no-repeat;
     width: 20px;
     height: 20px;
-    background-image: url('./images/enemy-purple.png');
+    background-image: url('./images/enemyB.png');
+}
+
+.mushroom {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-image: url('./images/mushroom.png');
+
 }
 
 .coin {
+    position: absolute;
     width: 20px;
     height: 20px;
     background-image: url('./images/coin.png');
@@ -96,45 +130,69 @@ body {
 }
 
 .surprise-block {
+    position: absolute;
     width: 20px;
     height: 20px;
     background-image: url('./images/surprise-block.png');
 }
 
 .surprise-block.hit {
+    position: absolute;
     width: 20px;
     height: 20px;
-    background-image: url('./images/surprise-block.png');
+    background-image: url('./images/block.png');
 }
 
 .pipe {
+    position: absolute;
     width: 40px;
     height: 40px;
-    
+
 
 }
+
 .pipe-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background-size: cover;
+    background-repeat: no-repeat;
     width: 20px;
     height: 20px;
-    background-image: url('./images/pipe-top.png');
+    background-image: url('./images/pipe-top-left.png');
 }
 
 .pipe-top-right {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-size: cover;
+    background-repeat: no-repeat;
     width: 20px;
     height: 20px;
-    background-image: url('./images/pipe-top.png');
+    background-image: url('./images/pipe-top-right.png');
 }
 
 .pipe-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    background-size: cover;
+    background-repeat: no-repeat;
     width: 20px;
     height: 20px;
-    background-image: url('./images/pipe-bottom.png');
+    background-image: url('./images/pipe-bottom-left.png');
 }
 
 .pipe-bottom-right {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background-size: cover;
+    background-repeat: no-repeat;
     width: 20px;
     height: 20px;
-    background-image: url('./images/pipe-bottom.png');
+    background-image: url('./images/pipe-bottom-right.png');
 }
 
 .controls {
@@ -143,7 +201,7 @@ body {
     font-size: 14px;
 }
 
-.game-over {
+#game-over {
     position: absolute;
     top: 50%;
     border: 3px solid #fff;
@@ -152,7 +210,9 @@ body {
     padding: 30px;
     border-radius: 10px;
     text-align: center;
-    z-index: 1000  ;
+    z-index: 1000;
+    display: none;
+
 }
 
 #restart-button {
@@ -167,4 +227,3 @@ body {
 #restart-button:hover {
     background-color: #ff5252;
 }
-
