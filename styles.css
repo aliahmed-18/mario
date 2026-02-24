@@ -8,24 +8,36 @@
      - This is "minimal but not zero" as required
    ============================================================ */
 
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 body {
-    margin: 0;
-    padding: 0;
-    background: linear-gradient(to bottom, #606060, #dfdfdf);
-    font-family: 'Courier New', monospace;
+    padding: 16px 0 32px;
+    background: linear-gradient(160deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+    font-family: 'Courier New', Courier, monospace;
     display: flex;
     flex-direction: column;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;
+    color: #fff;
 }
 
-.game-container {
-    background: #fff;
-    border: 3px solid #000;
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 4px 8px #000;
+h1 {
+    font-size: 26px;
+    margin-bottom: 10px;
+    text-shadow: 3px 3px 0 #c00, 0 0 20px rgba(255,80,80,0.4);
+    letter-spacing: 3px;
 }
+
+/* ── Game container ──────────────────────────────────────── */
+.game-container {
+    background: #111122;
+    border: 3px solid #ffe033;
+    border-radius: 12px;
+    padding: 10px 10px 12px;
+    box-shadow: 0 0 40px rgba(255,224,51,0.15), 0 8px 32px rgba(0,0,0,0.6);
+}
+
 
 /* ── HUD ──────────────────────────────────────────────────── */
 .ui {
