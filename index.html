@@ -10,32 +10,51 @@
     <h1>🍄 Mario Game 🍄</h1>
 
     <div class="game-container">
-        
 
-        <div id="timer">Time: <span id="time">0</span>s</div>
-        <div class="ui">    
+        <!-- ── HUD: Score | Level | Lives | Timer | FPS ───────── -->
+        <div class="ui">
             <p>Score: <span id="score">0</span></p>
-            <p>Levels: <span id="levels">1</span></p>
+            <p>Level: <span id="levels">1</span></p>
             <p>Lives: <span id="lives">3</span></p>
+            <p>Time: <span id="time">0</span>s</p>
+            <!-- Live FPS counter — colour coded by JS (green/yellow/red) -->
+            <p class="fps-badge">FPS: <span id="fps">--</span></p>
         </div>
 
+        <!-- ── Game area ────────────────────────────────────────── -->
         <div id="game-area">
+
+            <!-- Player -->
             <div id="mario"></div>
-        </div>
 
+            <!-- ── Pause Menu (hidden until P / Esc pressed) ──── -->
+            <div id="pause-menu">
+                <h2>⏸ Paused</h2>
+                <p>Press <strong>P</strong> or <strong>Esc</strong> to resume</p>
+                <button id="pause-continue" class="menu-btn secondary">▶ Continue</button>
+                <button id="pause-restart"  class="menu-btn">↺ Restart</button>
+            </div>
+
+            <!-- ── Game Over / Win overlay ──────────────────────── -->
+            <div id="game-over">
+                <h2 id="game-over-title">Game Over</h2>
+                <p>Final Score: <span id="final-score">0</span></p>
+                <button id="restart-button">Play Again</button>
+            </div>
+
+        </div><!-- end #game-area -->
+
+        <!-- ── Controls hint ────────────────────────────────────── -->
         <div class="controls">
-            <p>Controls:</p>
-            <p>Arrow key: Move Left/Right</p>
-            <p>Down Arrow: Enter Pipe (when on top of it)</p>
+            <p>
+                ← → &nbsp;/&nbsp; A D : Move &nbsp;|&nbsp;
+                Space / W / ↑ : Jump &nbsp;|&nbsp;
+                ↓ / S (on pipe) : Next Level &nbsp;|&nbsp;
+                <strong>P / Esc : Pause</strong>
+            </p>
         </div>
-    </div>
 
-    <div id="game-over">
-        <h2 id="game-over-title">Game Over</h2>
-        <p>Score: <span id="final-score">0</span></p>
-        <button id="restart-button">Play Again</button>
-    </div>
-    <canvas></canvas>
+    </div><!-- end .game-container -->
 
     <script src="app.js"></script>
 </body>

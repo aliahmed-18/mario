@@ -1,3 +1,13 @@
+/* ============================================================
+   MARIO JS  –  Stylesheet
+   Layer strategy:
+     - #mario uses  will-change: transform  → own compositor layer
+     - enemies use will-change: transform   → own compositor layer
+     - Static elements (platforms, coins, pipes) share the default layer
+     - Total promoted layers: 2 (mario + each live enemy)
+     - This is "minimal but not zero" as required
+   ============================================================ */
+
 body {
     margin: 0;
     padding: 0;
@@ -17,15 +27,32 @@ body {
     box-shadow: 0 4px 8px #000;
 }
 
+/* ── HUD ──────────────────────────────────────────────────── */
 .ui {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     margin-bottom: 10px;
     font-size: 18px;
     font-weight: bold;
     min-width: 800px;
 }
 
+.ui p { margin: 0; }
+
+/* FPS badge – colour is set dynamically by JS */
+.fps-badge {
+    font-size: 13px;
+    font-weight: bold;
+    background: #111;
+    color: #00ff88;
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    font-family: 'Courier New', monospace;
+}
+
+/* ── Game area ────────────────────────────────────────────── */
 #game-area {
     position: relative;
     width: 800px;
@@ -35,22 +62,29 @@ body {
     overflow: hidden;
 }
 
+/* ── Player ───────────────────────────────────────────────── */
 #mario {
     position: absolute;
-    background-size: cover;
-    background-repeat: no-repeat;
+    left: 0;          /* IMPORTANT: transform is relative to this origin */
+    top:  0;
     width: 20px;
     height: 20px;
-    background-image: url('./images/mario.png');
+    background-image: url('./images/m.png');
+    background-size: cover;
+    background-repeat: no-repeat;
     z-index: 100;
+    /* Promote to its own compositor layer so only compositing
+       runs each frame — no Layout or Paint triggered by transform */
+    will-change: transform;
 }
 
 #mario.big {
     width: 40px;
     height: 40px;
-    background-image: url('./images/mario.png');
+    background-image: url('./images/m.png');
 }
 
+/* ── Platforms ────────────────────────────────────────────── */
 .platform {
     position: absolute;
     background-size: 20px 20px;
@@ -59,56 +93,64 @@ body {
 }
 
 .platform.ground {
-    position: absolute;
-    width: 20px;
-    height: 20px;
     background-repeat: repeat;
     background-image: url('./images/platform.png');
 }
 
 .platform.floating {
-    position: absolute;
     background-size: 20px 20px;
     background-repeat: repeat;
     background-image: url('./images/platform.png');
 }
 
 .platform.blue {
-    position: absolute;
     background-size: 20px 20px;
     background-repeat: repeat;
     background-image: url('./images/platformB.png');
 }
 
 .platform.red {
-    position: absolute;
     background-size: 20px 20px;
     background-repeat: repeat;
     background-image: url('./images/platformR.png');
 }
 
-.enemy.brown {
+/* ── Enemies ──────────────────────────────────────────────── */
+.enemy {
     position: absolute;
     width: 20px;
     height: 20px;
-    background-image: url('./images/enemyR.png');
+    /* Each enemy gets its own compositor layer for smooth movement */
+    will-change: transform;
 }
 
-.enemy.purple {
-    position: absolute;
+.enemy.brown  {
     background-size: cover;
     background-repeat: no-repeat;
-    width: 20px;
-    height: 20px;
+    background-image: url('./images/enemybrown.png'); 
+}
+.enemy.red  {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-image: url('./images/enemyR.png'); 
+}
+.enemy.orange  {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-image: url('./images/enemyO.png'); 
+}
+.enemy.purple {
+    background-size: cover;
+    background-repeat: no-repeat;
     background-image: url('./images/enemyB.png');
 }
 
+/* ── Items ────────────────────────────────────────────────── */
 .mushroom {
     position: absolute;
     width: 20px;
     height: 20px;
     background-image: url('./images/mushroom.png');
-
 }
 
 .coin {
@@ -120,15 +162,11 @@ body {
 }
 
 @keyframes coinSpin {
-    0% {
-        transform: rotateY(0deg);
-    }
-
-    100% {
-        transform: rotateY(360deg);
-    }
+    from { transform: rotateY(0deg);   }
+    to   { transform: rotateY(360deg); }
 }
 
+/* ── Surprise blocks ──────────────────────────────────────── */
 .surprise-block {
     position: absolute;
     width: 20px;
@@ -137,93 +175,153 @@ body {
 }
 
 .surprise-block.hit {
-    position: absolute;
-    width: 20px;
-    height: 20px;
     background-image: url('./images/block.png');
 }
 
+/* ── Pipe ─────────────────────────────────────────────────── */
 .pipe {
     position: absolute;
     width: 40px;
     height: 40px;
-
-
 }
 
 .pipe-top {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 0; left: 0;
+    width: 20px; height: 20px;
     background-size: cover;
     background-repeat: no-repeat;
-    width: 20px;
-    height: 20px;
     background-image: url('./images/pipe-top-left.png');
 }
 
 .pipe-top-right {
     position: absolute;
-    top: 0;
-    right: 0;
+    top: 0; right: 0;
+    width: 20px; height: 20px;
     background-size: cover;
     background-repeat: no-repeat;
-    width: 20px;
-    height: 20px;
     background-image: url('./images/pipe-top-right.png');
 }
 
 .pipe-bottom {
     position: absolute;
-    bottom: 0;
-    left: 0;
+    bottom: 0; left: 0;
+    width: 20px; height: 20px;
     background-size: cover;
     background-repeat: no-repeat;
-    width: 20px;
-    height: 20px;
     background-image: url('./images/pipe-bottom-left.png');
 }
 
 .pipe-bottom-right {
     position: absolute;
-    bottom: 0;
-    right: 0;
+    bottom: 0; right: 0;
+    width: 20px; height: 20px;
     background-size: cover;
     background-repeat: no-repeat;
-    width: 20px;
-    height: 20px;
     background-image: url('./images/pipe-bottom-right.png');
 }
 
+/* ── Controls hint ────────────────────────────────────────── */
 .controls {
-    margin-top: 15px;
+    margin-top: 12px;
     text-align: center;
-    font-size: 14px;
+    font-size: 13px;
+    color: #444;
 }
 
+/* ── Pause Menu overlay ───────────────────────────────────── */
+#pause-menu {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.90);
+    border: 3px solid #ffe033;
+    border-radius: 12px;
+    color: #fff;
+    padding: 30px 44px;
+    text-align: center;
+    z-index: 900;
+    display: none;                  /* shown via JS */
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    min-width: 240px;
+}
+
+#pause-menu h2 {
+    margin: 0 0 4px;
+    font-size: 26px;
+    color: #ffe033;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+#pause-menu p {
+    margin: 0;
+    font-size: 13px;
+    color: #aaa;
+}
+
+/* ── Game Over overlay ────────────────────────────────────── */
 #game-over {
     position: absolute;
-    top: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.88);
     border: 3px solid #fff;
-    background: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    padding: 30px;
     border-radius: 10px;
+    color: #fff;
+    padding: 30px 40px;
     text-align: center;
     z-index: 1000;
-    display: none;
-
+    display: none;                  /* shown via JS */
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 260px;
 }
 
+/* ── Shared button styles ─────────────────────────────────── */
+.menu-btn {
+    background-color: #ff6b6b;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    padding: 9px 24px;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.15s, transform 0.1s;
+}
+
+.menu-btn:hover {
+    background-color: #ff5252;
+    transform: scale(1.03);
+}
+
+.menu-btn.secondary {
+    background-color: #3a7bd5;
+}
+
+.menu-btn.secondary:hover {
+    background-color: #2a60b0;
+}
+
+/* Game Over restart button */
 #restart-button {
     background-color: #ff6b6b;
     color: #fff;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     font-size: 16px;
-    margin: 10px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    padding: 9px 28px;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.15s;
 }
 
-#restart-button:hover {
-    background-color: #ff5252;
-}
+#restart-button:hover { background-color: #ff5252; }
